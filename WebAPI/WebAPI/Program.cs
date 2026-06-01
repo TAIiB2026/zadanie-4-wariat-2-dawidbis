@@ -1,34 +1,45 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using WebAPI.Interfaces;
+using WebAPI.Services;
 
-namespace WebAPI
+public class Program
 {
-    public class Program
+    public static void Main(string[] args)
     {
-        public static void Main(string[] args)
+        var builder = WebApplication.CreateBuilder(args);
+
+        var angularCorsPolicy = "AllowAngularApp";
+        builder.Services.AddCors(options =>
         {
-            var builder = WebApplication.CreateBuilder(args);
+            options.AddPolicy(name: angularCorsPolicy,
+                              policy =>
+                              {
+                                  policy.WithOrigins("http://localhost:4106")
+                                        .AllowAnyHeader()
+                                        .AllowAnyMethod();
+                              });
+        });
 
-            // Add services to the container.
+        builder.Services.AddSingleton<DataService>();
+        builder.Services.AddTransient<IGetDataInterface>(x => x.GetRequiredService<DataService>());
+        builder.Services.AddTransient<IFormSubmitInterface>(x => x.GetRequiredService<DataService>());
+        builder.Services.AddControllers();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen();
 
-            builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+        var app = builder.Build();
 
-            var app = builder.Build();
-
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
-
-            app.UseAuthorization();
-
-
-            app.MapControllers();
-
-            app.Run();
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI();
         }
+
+        app.UseCors(angularCorsPolicy);
+        app.UseAuthorization();
+        app.MapControllers();
+        app.Run();
     }
 }

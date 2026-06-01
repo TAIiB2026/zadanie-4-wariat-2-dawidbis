@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Subscription, Observable } from 'rxjs';
 import { FORM_SUBMIT_TOKEN } from '../tokens/form-submit.token';
@@ -10,7 +10,7 @@ import { GET_DATA_TOKEN } from '../tokens/get-data.token';
   templateUrl: './formularz.component.html',
   styles: ``
 })
-export class FormularzComponent {
+export class FormularzComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly getDataService = inject(GET_DATA_TOKEN);
@@ -22,25 +22,34 @@ export class FormularzComponent {
   public id?: number;
   public wczytywanie = true;
 
-  private readonly sub = new Subscription();
+  private sub: Subscription = new Subscription();
 
-  constructor() {
+  constructor() { }
+
+  ngOnInit(): void {
     this.sub = this.activatedRoute.params.subscribe(params => {
-      const id = params['id'];
-      if(id != null) {
-        const idNumber = parseInt(id);
-        if(!isNaN(idNumber)) {
+      const idParam = params['id'];
+      
+      if (idParam != null) {
+        const idNumber = parseInt(idParam, 10); 
+        
+        if (!isNaN(idNumber)) {
           this.id = idNumber;
 
           this.getDataService.GetByID(idNumber).subscribe({
             next: res => {
                 this.tytul = res.tytul;
                 this.cena = res.cena;
-                this.ustawDate(res.dataWydania);
+                
+                const dataWydania = new Date(res.dataWydania);
+                this.ustawDate(dataWydania);
+                
                 this.wczytywanie = false;
-              }, error: (err) => {
+              }, 
+              error: (err) => {
                 console.error(err);
                 alert("Wystąpił błąd podczas pobierania obiektu.");
+                this.wczytywanie = false;
               }
             });
         } else {
@@ -63,7 +72,9 @@ export class FormularzComponent {
   }
 
   ngOnDestroy(): void {
-    this.sub.unsubscribe();
+    if (this.sub) {
+      this.sub.unsubscribe();
+    }
   }
 
   public onSubmit() {
@@ -71,24 +82,28 @@ export class FormularzComponent {
     let request: Observable<boolean>;
 
     const [year, month, day] = this.data.split('-').map(Number);
-    const data: Date = new Date(year, month - 1, day);
+    const dataWydania: Date = new Date(year, month - 1, day);
 
-    if(this.id != null && this.id > 0) {
-      request = this.submitService.Put(this.id, this.tytul, this.cena, data);
+    if (this.id != null && this.id > 0) {
+      request = this.submitService.Put(this.id, this.tytul, this.cena, dataWydania);
     } else {
-      request = this.submitService.Post(this.tytul, this.cena, data);
+      request = this.submitService.Post(this.tytul, this.cena, dataWydania);
     }
 
-    request.subscribe({next: (res) => {
-      if(res) {
-        this.router.navigateByUrl("/ksiazki");
-      } else {
-        alert("Wystąpił błąd podczas próby zapisu zmian.");
+    request.subscribe({
+      next: (res) => {
+        if (res) {
+          this.router.navigateByUrl("/ksiazki");
+        } else {
+          alert("Wystąpił błąd podczas próby zapisu zmian.");
+          this.wczytywanie = false;
+        }
+      }, 
+      error: (err) => {
+        console.error(err);
+        alert("Wystąpił błąd komunikacji z serwerem podczas zapisu.");
         this.wczytywanie = false;
       }
-    }, error: (err) => {
-      alert("Wystąpił błąd podczas próby zapisu zmian.");
-        this.wczytywanie = false;
-    }})
+    });
   }
 }
